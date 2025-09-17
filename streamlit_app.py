@@ -41,17 +41,29 @@ st.title("💕 Dudu & Bubu's Love AI")
 st.markdown("*Your personal relationship companion for Dudu and Bubu* 💖")
 st.markdown("🌸 *Where love grows stronger every day* 🌸")
 
-# Configuration from .env file
-endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-model_name = os.getenv("MODEL_NAME")
-model_deployment = os.getenv("DEPLOYMENT_NAME")
-subscription_key = os.getenv("AZURE_OPENAI_API_KEY")
-api_version = os.getenv("AZURE_OPENAI_API_VERSION")
+# Configuration from .env file or Streamlit secrets
+endpoint = os.getenv("AZURE_OPENAI_ENDPOINT") or st.secrets.get("AZURE_OPENAI_ENDPOINT")
+model_name = os.getenv("MODEL_NAME") or st.secrets.get("MODEL_NAME")
+model_deployment = os.getenv("DEPLOYMENT_NAME") or st.secrets.get("DEPLOYMENT_NAME")
+subscription_key = os.getenv("AZURE_OPENAI_API_KEY") or st.secrets.get("AZURE_OPENAI_API_KEY")
+api_version = os.getenv("AZURE_OPENAI_API_VERSION") or st.secrets.get("AZURE_OPENAI_API_VERSION")
 
 api_key = subscription_key
 
 if not endpoint or not api_key:
-    st.error("Endpoint or API key missing. Please check configuration.")
+    st.error("🔑 Configuration Missing!")
+    st.markdown("""
+    **For local development:** Make sure your `.env` file contains:
+    ```
+    AZURE_OPENAI_ENDPOINT=your_endpoint
+    AZURE_OPENAI_API_KEY=your_key
+    DEPLOYMENT_NAME=your_deployment
+    MODEL_NAME=your_model
+    AZURE_OPENAI_API_VERSION=your_version
+    ```
+    
+    **For Streamlit Cloud:** Add these as secrets in your app settings.
+    """)
     st.stop()
 
 # Initialize client (lazy)

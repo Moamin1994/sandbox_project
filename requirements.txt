@@ -1,0 +1,36 @@
+streamlit# DuDu & Bubu Chat - Core Dependencies
+
+openai
+
+python-dotenv# Azure AI and Function Dependencies
+
+requestsazure-ai-inference>=1.0.0b4
+azure-functions>=1.19.0
+azure-identity>=1.15.0
+azure-keyvault-secrets>=4.8.0
+
+# Streamlit Frontend
+streamlit>=1.29.0
+streamlit-chat>=0.1.1
+
+# HTTP and API
+requests>=2.31.0
+httpx>=0.25.0
+
+# Environment and Configuration
+python-dotenv>=1.0.0
+
+# Logging and Monitoring
+opencensus-ext-azure>=1.1.13
+
+# Data Handling
+pydantic>=2.5.0
+
+# Development and Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+black>=23.0.0
+flake8>=6.0.0
+
+# Security
+cryptography>=41.0.0

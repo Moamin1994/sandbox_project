@@ -8,10 +8,38 @@ from openai import AzureOpenAI
 
 load_dotenv()
 
-st.set_page_config(page_title="💕 Love & Relationship AI Advisor", page_icon="💕", layout="centered")
+st.set_page_config(page_title="💕 Dudu & Bubu's Love AI", page_icon="💕", layout="centered")
 
-st.title("💕 Love & Relationship AI Advisor")
-st.markdown("*Your personal AI companion for matters of the heart* 💖")
+# Custom CSS to reduce top spacing
+st.markdown("""
+<style>
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 0rem;
+    }
+    .main > div {
+        padding-top: 1rem;
+    }
+    .stApp > header {
+        background-color: transparent;
+    }
+    .stApp {
+        margin-top: -40px;
+    }
+    /* Reduce sidebar top spacing */
+    .css-1d391kg {
+        padding-top: 2rem;
+    }
+    /* Alternative sidebar class */
+    .st-emotion-cache-16idsys {
+        padding-top: 2rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("💕 Dudu & Bubu's Love AI")
+st.markdown("*Your personal relationship companion for Dudu and Bubu* 💖")
+st.markdown("🌸 *Where love grows stronger every day* 🌸")
 
 # Configuration from .env file
 endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
@@ -39,7 +67,7 @@ if "messages" not in st.session_state:
     # Add a warm welcome message
     st.session_state.messages.append({
         "role": "assistant", 
-        "content": "Hello beautiful soul! 💕 I'm here to help you with all matters of love and relationships. Whether you need advice about dating, communication, or just want to talk about your feelings, I'm here for you. What's on your heart today? 💖"
+        "content": "Hello Dudu and Bubu! 💕 I'm your personal love AI, specially created for your beautiful relationship. Whether it's Dudu seeking advice about making Bubu smile, or you two want to strengthen your bond even more, I'm here to help. Your love story is so special - what would you like to talk about today? 💖✨"
     })
 
 # Display chat history
@@ -58,8 +86,8 @@ with chat_container:
 # User input section
 st.markdown("---")
 user_input = st.text_area(
-    "💖 Share what's on your heart:",
-    placeholder="Tell me about your love life, relationship concerns, dating questions, or anything about matters of the heart...",
+    "💖 BuBu, share what's on your heart:",
+    placeholder="Tell me about your love for Dudu, relationship questions, or anything about your beautiful journey together...",
     height=100
 )
 
@@ -76,7 +104,7 @@ if send_button and user_input.strip():
     api_messages = [
         {
             "role": "system",
-            "content": "You are a warm, empathetic, and wise AI relationship advisor. You specialize in love, dating, relationships, and emotional support. Always respond with kindness, understanding, and helpful advice. Use gentle, loving language and include relevant emojis to make your responses feel warm and supportive. Focus on healthy relationships, communication, self-love, and emotional well-being."
+            "content": "You are a warm, empathetic AI relationship advisor specifically created for Dudu and his beloved wife Bubu. You know that Dudu and Bubu love each other deeply and have a beautiful marriage. Always respond with kindness, understanding, and helpful advice tailored to their relationship. When Dudu asks for advice, consider how to help him make Bubu happy, strengthen their bond, or navigate married life together. Use gentle, loving language and include relevant emojis. Focus on celebrating their love, improving communication, creating romantic moments, and deepening their connection as husband and wife. Remember that you're supporting a loving married couple who want to grow even closer together."
         }
     ] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
     
@@ -101,47 +129,53 @@ if send_button and user_input.strip():
 
 # Sidebar with love-themed features
 with st.sidebar:
-    st.markdown("## 💖 Love Helper")
+    st.markdown("## 💖 Dudu & Bubu's Helper")
+    st.markdown("*Your relationship companion* 🌸")
     
     if st.button("🌸 New Conversation", use_container_width=True):
         st.session_state.messages = []
         st.session_state.messages.append({
             "role": "assistant", 
-            "content": "Hello beautiful soul! 💕 I'm here to help you with all matters of love and relationships. Whether you need advice about dating, communication, or just want to talk about your feelings, I'm here for you. What's on your heart today? 💖"
+            "content": "Hello Dudu and Bubu! 💕 I'm your personal love AI, specially created for your beautiful relationship. Whether it's Dudu seeking advice about making Bubu smile, or you two want to strengthen your bond even more, I'm here to help. Your love story is so special - what would you like to talk about today? 💖✨"
         })
         st.rerun()
     
     st.markdown("---")
-    st.markdown("### 💫 Quick Topics")
+    st.markdown("### 💫 Quick Topics for Dudu & Bubu")
     
-    if st.button("💑 Dating Advice", use_container_width=True):
-        prompt = "I'd like some dating advice"
+    if st.button("� Make Bubu Smile", use_container_width=True):
+        prompt = "How can I make Bubu smile and feel extra loved today?"
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.rerun()
         
-    if st.button("💕 Relationship Tips", use_container_width=True):
-        prompt = "Can you give me some relationship tips?"
+    if st.button("🏠 Marriage Tips", use_container_width=True):
+        prompt = "Give me some tips to strengthen my marriage with Bubu"
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.rerun()
         
-    if st.button("💌 Communication Help", use_container_width=True):
-        prompt = "How can I communicate better in my relationship?"
+    if st.button("💌 Sweet Communication", use_container_width=True):
+        prompt = "How can Dudu and Bubu communicate even more lovingly?"
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.rerun()
         
-    if st.button("🌹 Self-Love Guidance", use_container_width=True):
-        prompt = "Help me with self-love and confidence"
+    if st.button("🌹 Romantic Ideas", use_container_width=True):
+        prompt = "Suggest some romantic ideas for Dudu and Bubu"
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.rerun()
+    
+    if st.button("💑 Date Night Plans", use_container_width=True):
+        prompt = "Plan a perfect date night for Dudu and Bubu"
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.rerun()
     
     st.markdown("---")
-    st.markdown("### ℹ️ About")
-    st.markdown("This AI advisor is here to support you with:")
-    st.markdown("- 💕 Relationship advice")
-    st.markdown("- 💑 Dating guidance") 
-    st.markdown("- 💌 Communication tips")
-    st.markdown("- 🌸 Self-love & confidence")
-    st.markdown("- 💖 Emotional support")
+    st.markdown("### ℹ️ About Your Love AI")
+    st.markdown("This AI is specially designed for:")
+    st.markdown("- 💕 Dudu & Bubu's relationship")
+    st.markdown("- 🏠 Marriage strengthening") 
+    st.markdown("- 💌 Sweet communication")
+    st.markdown("- � Romantic moments")
+    st.markdown("- 💖 Growing closer together")
 
 st.markdown("---")
-st.markdown("*Made with 💕 for matters of the heart*")
+st.markdown("*Made with 💕 for Dudu & Bubu's beautiful love story* 🌸")

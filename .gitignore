@@ -1,106 +1,36 @@
-# Python virtual environments# Python
+# Environment variables (contains secrets!)
+.env
 
-venv/__pycache__/
-
-env/*.pyc
-
-ENV/*.pyo
-
-.venv/*.pyd
-
-.env/*.pytest_cache/
-
-.dist/
-
-# Environment variables (contains secrets!)build/
-
-.env.eggs/
-
-
-
-# Python cache files# Environments
-
-__pycache__/.venv/
-
-*.py[cod]env/
-
-*$py.classvenv/
-
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
 *.so
-
-.Python# Editors
-
-build/.vscode/
-
-develop-eggs/.idea/
-
+.Python
+build/
+develop-eggs/
 dist/
-
-downloads/# Local config / secrets
-
-eggs/.env
-
-.eggs/.env.local
-
-lib/local.settings.json
-
+downloads/
+eggs/
+.eggs/
+lib/
 lib64/
-
-parts/# OS
-
-sdist/.DS_Store
-
-var/Thumbs.db
+parts/
+sdist/
+var/
 wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# Environments
-.env
-.venv
-env/
+# Virtual environments
 venv/
+env/
 ENV/
+.venv/
+.env/
 env.bak/
 venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
 
 # IDE files
 .vscode/
@@ -117,9 +47,26 @@ dmypy.json
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# Windows
 desktop.ini
 
 # Streamlit
 .streamlit/
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Local config files
+local.settings.json
+.env.local

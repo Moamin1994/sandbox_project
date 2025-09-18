@@ -47,6 +47,16 @@ st.markdown("""
     .stButton > button:hover {
         background-color: #1F5F3F;
     }
+    /* Image generation button styling */
+    .stButton.image-gen > button {
+        background-color: #FF6B35;
+        color: white;
+        border: none;
+        border-radius: 5px;
+    }
+    .stButton.image-gen > button:hover {
+        background-color: #E55A2B;
+    }
     /* File upload styling */
     .uploadedFile {
         border: 2px dashed #2E8B57;
@@ -68,6 +78,9 @@ model_deployment = os.getenv("DEPLOYMENT_NAME") or st.secrets.get("DEPLOYMENT_NA
 subscription_key = os.getenv("AZURE_OPENAI_API_KEY") or st.secrets.get("AZURE_OPENAI_API_KEY")
 api_version = os.getenv("AZURE_OPENAI_API_VERSION") or st.secrets.get("AZURE_OPENAI_API_VERSION")
 
+# DALL-E specific configuration
+dalle_deployment = os.getenv("DALLE_DEPLOYMENT_NAME") or st.secrets.get("DALLE_DEPLOYMENT_NAME", "dall-e-3")
+
 api_key = subscription_key
 
 if not endpoint or not api_key:
@@ -80,6 +93,7 @@ if not endpoint or not api_key:
     DEPLOYMENT_NAME=your_deployment
     MODEL_NAME=your_model
     AZURE_OPENAI_API_VERSION=your_version
+    DALLE_DEPLOYMENT_NAME=your_dalle_deployment
     ```
     
     **For Streamlit Cloud:** Add these as secrets in your app settings.
@@ -92,6 +106,32 @@ def get_client(ep: str, key: str, version: str):
     return AzureOpenAI(api_version=version, azure_endpoint=ep, api_key=key)
 
 client = get_client(endpoint, api_key, api_version)
+
+# Image generation function
+def generate_architectural_image(prompt):
+    """Generate architectural images using DALL-E 3"""
+    try:
+        response = client.images.generate(
+            model=dalle_deployment,
+            prompt=f"Professional architectural visualization: {prompt}. High-quality, detailed, realistic architectural rendering style.",
+            size="1024x1024",
+            quality="hd",
+            n=1
+        )
+        
+        image_url = response.data[0].url
+        
+        # Download the image
+        img_response = requests.get(image_url)
+        if img_response.status_code == 200:
+            return img_response.content
+        else:
+            st.error(f"Failed to download generated image: {img_response.status_code}")
+            return None
+            
+    except Exception as e:
+        st.error(f"Error generating image: {e}")
+        return None
 
 # File processing functions
 def encode_image_to_base64(image_file):
@@ -133,7 +173,7 @@ if "messages" not in st.session_state:
     # Add a professional welcome message
     st.session_state.messages.append({
         "role": "assistant", 
-        "content": "Welcome to ArchitectAI Studio! 🏗️ I'm your professional architectural design assistant, specialized in helping architects and construction designers create innovative building concepts, analyze structural designs, and visualize architectural projects.\n\n**I can help with:**\n📐 Architectural design and space planning\n🏗️ Structural analysis and engineering\n📊 Blueprint and drawing analysis\n🎨 Design visualization and rendering descriptions\n📁 File analysis (images, CAD files, documents)\n🌿 Sustainable design strategies\n\nYou can upload files (images, blueprints, documents) along with your questions for more detailed analysis. How can I assist with your project today?"
+        "content": "Welcome to ArchitectAI Studio! 🏗️ I'm your professional architectural design assistant, specialized in helping architects and construction designers create innovative buildings and visualizations. I can help you with design consultations, analyze your files, and generate architectural images using DALL-E 3. How can I assist you today?"
     })
 
 # Display chat history
@@ -151,34 +191,77 @@ with chat_container:
                 if "files" in message:
                     for file_info in message["files"]:
                         st.info(f"📎 Uploaded: {file_info['name']} ({file_info['type']})")
+                # Display image generation request
+                if "image_request" in message:
+                    st.info(f"🎨 Image Generation Request: {message['image_request']}")
         else:
             with st.chat_message("assistant", avatar="🏗️"):
                 st.markdown(message["content"])
+                # Display generated images
+                if "generated_image" in message:
+                    st.image(message["generated_image"], caption="Generated Architectural Visualization", use_column_width=True)
 
-# File upload section
+# Mode selection
 st.markdown("---")
-st.markdown("### 📁 Upload Project Files")
+col1, col2 = st.columns(2)
 
-uploaded_files = st.file_uploader(
-    "Upload architectural drawings, blueprints, images, or documents",
-    accept_multiple_files=True,
-    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'pdf', 'txt', 'docx', 'dwg', 'dxf'],
-    help="Supported: Images (PNG, JPG, etc.), Documents (PDF, TXT, DOCX), CAD files (DWG, DXF)"
-)
+with col1:
+    mode = st.radio(
+        "🎯 Choose Mode:",
+        ["💬 Chat & Analysis", "🎨 Image Generation"],
+        horizontal=True
+    )
+
+# File upload section (only for chat mode)
+if mode == "💬 Chat & Analysis":
+    st.markdown("### 📁 Upload Project Files")
+    uploaded_files = st.file_uploader(
+        "Upload architectural drawings, blueprints, images, or documents",
+        accept_multiple_files=True,
+        type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'pdf', 'txt', 'docx', 'dwg', 'dxf'],
+        help="Supported: Images (PNG, JPG, etc.), Documents (PDF, TXT, DOCX), CAD files (DWG, DXF)"
+    )
 
 # User input section
-user_input = st.text_area(
-    "📐 Describe your architectural project or design challenge:",
-    placeholder="Tell me about your building project, design requirements, site constraints, or ask questions about uploaded files...",
-    height=100
-)
+if mode == "💬 Chat & Analysis":
+    user_input = st.text_area(
+        "📐 Describe your architectural project or design challenge:",
+        placeholder="Tell me about your building project, design requirements, site constraints, or ask questions about uploaded files...",
+        height=100
+    )
+    
+    col1, col2, col3 = st.columns([1, 3, 1])
+    with col2:
+        send_button = st.button("🏗️ Get Design Assistance", type="primary", use_container_width=True)
+        
+else:  # Image Generation mode
+    user_input = st.text_area(
+        "🎨 Describe the architectural visualization you want to generate:",
+        placeholder="Describe the building, architectural style, environment, materials, lighting, perspective, etc. Be as detailed as possible for better results...",
+        height=120
+    )
+    
+    # Image generation options
+    col1, col2 = st.columns(2)
+    with col1:
+        style_preset = st.selectbox(
+            "🏛️ Architectural Style:",
+            ["Modern Contemporary", "Classical", "Art Deco", "Brutalist", "Minimalist", "Sustainable/Green", "Industrial", "Traditional", "Futuristic", "Custom (use description)"]
+        )
+    
+    with col2:
+        view_type = st.selectbox(
+            "📐 View Type:",
+            ["Exterior Perspective", "Interior View", "Aerial View", "Cross-Section", "Floor Plan Visualization", "Detail View", "Landscape Integration"]
+        )
+    
+    # Generate image button
+    col1, col2, col3 = st.columns([1, 3, 1])
+    with col2:
+        generate_button = st.button("🎨 Generate Architectural Image", type="primary", use_container_width=True, key="generate_img")
 
-col1, col2, col3 = st.columns([1, 3, 1])
-with col2:
-    send_button = st.button("🏗️ Get Design Assistance", type="primary", use_container_width=True)
-
-# Process user input
-if send_button and (user_input.strip() or uploaded_files):
+# Process user input for chat mode
+if mode == "💬 Chat & Analysis" and send_button and (user_input.strip() or uploaded_files):
     if not user_input.strip() and uploaded_files:
         user_input = "Please analyze the uploaded files and provide architectural insights."
     
@@ -231,7 +314,22 @@ if send_button and (user_input.strip() or uploaded_files):
     api_messages = [
         {
             "role": "system",
-            "content": """You are ArchitectAI, a professional architectural design assistant specializing in construction and building design. You are an expert in:\n\n- Architectural design principles and building codes\n- Structural engineering concepts and material selection\n- Sustainable design and green building practices\n- Space planning and interior design optimization\n- Construction techniques and project management\n- Building information modeling (BIM) and CAD software\n- Urban planning and landscape architecture\n- Blueprint and technical drawing analysis\n\nWhen analyzing uploaded files:\n- For images: Provide detailed architectural analysis, identify design elements, suggest improvements\n- For blueprints/plans: Analyze layout efficiency, code compliance, structural considerations\n- For documents: Extract relevant technical information and provide professional insights\n- Always consider practical construction and design implications\n\nProvide professional, technical advice while being accessible. Include specific measurements, materials, and technical specifications when relevant. Consider building codes, sustainability, cost-effectiveness, and constructability in all recommendations."""
+            "content": """You are ArchitectAI, a professional architectural design assistant specializing in construction and building design. You are an expert in:
+
+- Architectural design principles and theory
+- Building codes and regulations
+- Structural engineering fundamentals
+- Sustainable and green building practices
+- Material selection and construction methods
+- Site planning and urban design
+- Interior design and space planning
+- Project management and construction processes
+- CAD software and technical drawings
+- Building systems (HVAC, electrical, plumbing)
+- Accessibility and universal design
+- Historical and contemporary architectural styles
+
+Provide detailed, professional advice with practical solutions. When analyzing uploaded files, focus on architectural elements, design principles, and construction feasibility. Always consider safety, building codes, sustainability, and cost-effectiveness in your recommendations."""
         }
     ]
     
@@ -285,6 +383,51 @@ if send_button and (user_input.strip() or uploaded_files):
         st.error(f"🔧 Sorry, I encountered a technical issue: {e}")
         st.error("Please check your model deployment supports the requested features (especially vision for images)")
 
+# Process image generation
+elif mode == "🎨 Image Generation" and generate_button and user_input.strip():
+    # Enhance prompt with style and view information
+    enhanced_prompt = user_input
+    
+    if style_preset != "Custom (use description)":
+        enhanced_prompt += f" Architectural style: {style_preset}."
+    
+    enhanced_prompt += f" View type: {view_type}."
+    
+    # Add user message for image generation
+    user_message = {
+        "role": "user", 
+        "content": f"Generate architectural image: {user_input}",
+        "image_request": enhanced_prompt
+    }
+    st.session_state.messages.append(user_message)
+    
+    try:
+        with st.spinner("🎨 Generating architectural visualization..."):
+            generated_image_data = generate_architectural_image(enhanced_prompt)
+            
+        if generated_image_data:
+            # Convert to PIL Image for display
+            generated_image = Image.open(io.BytesIO(generated_image_data))
+            
+            # Add AI response with generated image
+            ai_response = f"I've generated an architectural visualization based on your description: '{user_input}'\n\nStyle: {style_preset}\nView: {view_type}\n\nThe image shows a professional architectural rendering with attention to design details, materials, and spatial relationships."
+            
+            ai_message = {
+                "role": "assistant", 
+                "content": ai_response,
+                "generated_image": generated_image
+            }
+            st.session_state.messages.append(ai_message)
+            
+            st.success("✅ Image generated successfully!")
+            st.rerun()
+        else:
+            st.error("❌ Failed to generate image. Please try again with a different description.")
+            
+    except Exception as e:
+        st.error(f"🔧 Sorry, I encountered an issue generating the image: {e}")
+        st.error("Please check your DALL-E 3 deployment configuration.")
+
 # Sidebar with architecture-themed features
 with st.sidebar:
     st.markdown("## 🏗️ ArchitectAI Tools")
@@ -294,7 +437,7 @@ with st.sidebar:
         st.session_state.messages = []
         st.session_state.messages.append({
             "role": "assistant", 
-            "content": "Welcome to ArchitectAI Studio! 🏗️ I'm ready to help with your new architectural project. Whether you're designing a residential home, commercial building, or urban development, I can assist with conceptual design, technical drawings, structural analysis, and construction planning. Upload any relevant files and tell me about your project!"
+            "content": "Welcome to ArchitectAI Studio! 🏗️ I'm ready to help with your new architectural project. Whether you're designing a residential home, commercial building, or urban development, I can assist with consultations and generate visualizations. How can I help you today?"
         })
         st.rerun()
     
@@ -309,7 +452,7 @@ with st.sidebar:
     if st.button("🏢 Commercial Building", use_container_width=True):
         prompt = "Create a concept for a modern office building with efficient layout and green building features"
         st.session_state.messages.append({"role": "user", "content": prompt})
-        st.run() 
+        st.rerun()
         
     if st.button("📐 Floor Plan Analysis", use_container_width=True):
         prompt = "Analyze and optimize a floor plan for better flow, functionality, and space utilization"
@@ -320,16 +463,28 @@ with st.sidebar:
         prompt = "Suggest sustainable design strategies and green building techniques for an eco-friendly project"
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.rerun()
-    
+        
     if st.button("🔧 Structural Analysis", use_container_width=True):
         prompt = "Provide structural engineering guidance and material recommendations for a building project"
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.rerun()
         
-    if st.button("🎨 Design Visualization", use_container_width=True):
-        prompt = "Create detailed descriptions for architectural renderings and visual representations of a building design"
-        st.session_state.messages.append({"role": "user", "content": prompt})
+    if st.button("🎨 Generate Visualization", use_container_width=True):
+        prompt = "A modern glass office building with sustainable features, surrounded by green landscaping, during golden hour"
+        user_message = {
+            "role": "user", 
+            "content": "Generate architectural image: " + prompt,
+            "image_request": prompt
+        }
+        st.session_state.messages.append(user_message)
         st.rerun()
+    
+    st.markdown("---")
+    st.markdown("### 🎨 Image Generation Features")
+    st.markdown("**Styles:** Modern, Classical, Art Deco, Brutalist")
+    st.markdown("**Views:** Exterior, Interior, Aerial, Cross-Section")
+    st.markdown("**Quality:** HD 1024x1024 resolution")
+    st.markdown("*Powered by DALL-E 3 for photorealistic renders*")
     
     st.markdown("---")
     st.markdown("### 📁 Supported File Types")
@@ -345,7 +500,7 @@ with st.sidebar:
     st.markdown("- 📐 Technical drawings & blueprints") 
     st.markdown("- 🌿 Sustainable construction")
     st.markdown("- 🔧 Structural engineering")
-    st.markdown("- 🎨 Design visualization")
+    st.markdown("- 🎨 AI-powered visualization")
     st.markdown("- 📁 File analysis & insights")
 
 st.markdown("---")

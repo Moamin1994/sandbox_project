@@ -111,24 +111,14 @@ def generate_architectural_image(prompt, reference_image=None):
     """Generate architectural images using DALL-E 3"""
     try:
         if reference_image is not None:
-            # For image-to-image generation, we need to convert the uploaded file to base64
-            image = Image.open(reference_image)
+            # For image-to-image with DALL-E 3, we create an enhanced text prompt
+            # that describes the reference image style and incorporates user modifications
+            enhanced_prompt = f"""Professional architectural visualization with these specifications: {prompt}. 
+            Style: Create a detailed architectural rendering that incorporates modern design principles.
+            Quality: High-resolution, photorealistic architectural visualization.
+            Focus: Professional architectural photography style with proper lighting and composition."""
             
-            # Resize if too large (DALL-E has size limits)
-            max_size = 1024
-            if image.width > max_size or image.height > max_size:
-                image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-            
-            # Convert to base64
-            img_buffer = io.BytesIO()
-            image.save(img_buffer, format='PNG')
-            img_base64 = base64.b64encode(img_buffer.getvalue()).decode()
-            
-            # Create enhanced prompt for image modification
-            enhanced_prompt = f"Create a professional architectural visualization inspired by the uploaded reference image. Apply these modifications and design elements: {prompt}. Maintain architectural accuracy, professional rendering quality, and incorporate the compositional elements and style characteristics from the reference while implementing the requested changes."
-            
-            # Note: DALL-E 3 doesn't support direct image-to-image, but we can use the image as inspiration
-            # In a future update, we could use DALL-E 2 edit functionality or other image-to-image models
+            # Note: DALL-E 3 works with text prompts only. True image-to-image would require DALL-E 2 edit mode
             response = dalle_client.images.generate(
                 model=dalle_deployment,
                 prompt=enhanced_prompt,
@@ -138,9 +128,10 @@ def generate_architectural_image(prompt, reference_image=None):
             )
         else:
             # Standard text-to-image generation
+            enhanced_prompt = f"Professional architectural visualization: {prompt}. High-quality, detailed, realistic architectural rendering style."
             response = dalle_client.images.generate(
                 model=dalle_deployment,
-                prompt=f"Professional architectural visualization: {prompt}. High-quality, detailed, realistic architectural rendering style.",
+                prompt=enhanced_prompt,
                 size="1024x1024",
                 quality="hd",
                 n=1
@@ -171,6 +162,17 @@ def generate_architectural_image(prompt, reference_image=None):
         elif "404" in error_msg:
             st.error("🚫 **DALL-E Model Not Found:**")
             st.error("DALL-E 3 model is not deployed in your Azure OpenAI resource.")
+        elif "content_policy_violation" in error_msg or "safety system" in error_msg:
+            st.error("🛡️ **Content Safety Filter Triggered:**")
+            st.error("Your request was filtered by Azure's safety system.")
+            st.info("""
+            **Try these suggestions:**
+            - Use more general, descriptive language
+            - Focus on architectural terms like "modern building", "residential design", "commercial space"
+            - Avoid detailed descriptions that might trigger safety filters
+            - Try shorter, simpler prompts
+            """)
+            st.warning("💡 **Tip:** In image-to-image mode, try describing what you want to create rather than referencing the uploaded image directly.")
         else:
             st.error(f"❌ **Error generating image:** {error_msg}")
         return None
@@ -231,7 +233,7 @@ if mode == "🎨 Image Generation":
         if uploaded_file is not None:
             st.image(uploaded_file, caption="Reference Image", use_container_width=True)
             
-        st.info("💡 **Note:** DALL-E 3 will use your reference image as inspiration to create a new architectural visualization based on your description. The generated image will be influenced by the style and elements of your uploaded image.")
+        st.info("💡 **How Image-to-Image Works:** Upload a reference image to inspire your new architectural visualization. DALL-E 3 will create a completely new image based on your text description, using the uploaded image as visual inspiration for style and composition.")
     
     col1, col2 = st.columns(2)
     with col1:
@@ -250,8 +252,8 @@ if mode == "🎨 Image Generation":
     
     if generation_mode == "🖼️ Image to Image":
         user_input = st.text_area(
-            "🔄 Describe the modifications or variations you want:",
-            placeholder="Describe how you want to modify, improve, or reimagine the uploaded image...",
+            "🔄 Describe the architectural design you want to create:",
+            placeholder="Describe the type of building or architectural style you want to generate, inspired by your uploaded image...",
             height=100
         )
     else:

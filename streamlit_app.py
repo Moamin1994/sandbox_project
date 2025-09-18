@@ -205,7 +205,7 @@ with chat_container:
                 # Display generated image if present
                 if "generated_image" in message:
                     img = Image.open(io.BytesIO(message["generated_image"]))
-                    st.image(img, caption="Generated Architectural Visualization", use_column_width=True)
+                    st.image(img, caption="Generated Architectural Visualization", use_container_width=True)
 
 # Input section based on mode
 st.markdown("---")
@@ -229,7 +229,7 @@ if mode == "🎨 Image Generation":
         )
         
         if uploaded_file is not None:
-            st.image(uploaded_file, caption="Reference Image", use_column_width=True)
+            st.image(uploaded_file, caption="Reference Image", use_container_width=True)
             
         st.info("💡 **Note:** DALL-E 3 will use your reference image as inspiration to create a new architectural visualization based on your description. The generated image will be influenced by the style and elements of your uploaded image.")
     
@@ -351,7 +351,7 @@ elif mode == "🎨 Image Generation" and 'generate_button' in locals() and gener
                     "generated_image": generated_image_data
                 })
                 
-                st.image(generated_image, caption="Generated Architectural Visualization", use_column_width=True)
+                st.image(generated_image, caption="Generated Architectural Visualization", use_container_width=True)
                 st.rerun()
             else:
                 st.error("Failed to generate image. Please try again.")

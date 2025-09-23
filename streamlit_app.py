@@ -11,8 +11,25 @@ from openai import AzureOpenAI
 import asyncio
 from datetime import datetime
 
-# Load environment variables first before any other setup
+# Load environment variables - works for both local development and Streamlit Cloud
 load_dotenv()
+
+# For Streamlit Cloud, also load from st.secrets
+def get_env_var(key, default=None):
+    """Get environment variable from either os.environ or st.secrets"""
+    # First try environment variables (local development)
+    value = os.getenv(key)
+    if value:
+        return value
+    
+    # Then try Streamlit secrets (cloud deployment)
+    try:
+        if hasattr(st, 'secrets') and key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+    
+    return default
 
 # Setup OpenTelemetry tracing for Azure AI Foundry dashboard
 try:

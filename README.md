@@ -14,7 +14,23 @@ This system implements an intelligent multi-agent orchestration pattern on Azure
 
 ## 🚀 Quick Deployment
 
-### Prerequisites
+### Option 1: Streamlit Cloud (Recommended for Testing)
+
+Deploy instantly to Streamlit Cloud for free:
+
+1. **Fork this repository** to your GitHub account
+2. **Sign up** at [Streamlit Cloud](https://share.streamlit.io/)
+3. **Create new app** pointing to `streamlit_app.py`
+4. **Configure secrets** with your Azure credentials
+5. **Deploy!** - Your app will be live in minutes
+
+📋 **Detailed Guide**: See [STREAMLIT_DEPLOYMENT.md](./STREAMLIT_DEPLOYMENT.md) for complete instructions.
+
+### Option 2: Azure Cloud Native Deployment
+
+For production workloads with full Azure integration:
+
+#### Prerequisites
 
 1. **Azure CLI** - [Install](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli)
 2. **Azure Developer CLI** - [Install](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd)
@@ -22,7 +38,7 @@ This system implements an intelligent multi-agent orchestration pattern on Azure
 4. **Python 3.11+** for local development
 5. **Azure Subscription** with appropriate permissions
 
-### One-Command Deployment
+#### One-Command Deployment
 
 ```powershell
 # Clone and deploy
@@ -36,7 +52,7 @@ $env:FLUX_API_KEY = "your-flux-api-key"
 .\deploy_complete.ps1 -Environment "prod" -Location "eastus2"
 ```
 
-### Step-by-Step Deployment
+#### Step-by-Step Deployment
 
 1. **Login to Azure**
    ```powershell

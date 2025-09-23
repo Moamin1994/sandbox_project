@@ -3,6 +3,23 @@ Setup proper OpenTelemetry tracing for Azure AI Foundry dashboard visibility
 """
 import os
 
+def get_env_var(key, default=None):
+    """Get environment variable from either os.environ or st.secrets"""
+    # First try environment variables (local development)
+    value = os.getenv(key)
+    if value:
+        return value
+    
+    # Then try Streamlit secrets (cloud deployment)
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets') and key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+    
+    return default
+
 def setup_azure_tracing():
     """Configure OpenTelemetry tracing for Azure AI Foundry"""
     
@@ -36,8 +53,8 @@ def setup_azure_tracing():
             "service.name": "ArchitectAI-AzureFoundry"
         })
         
-        # Get Azure AI Foundry endpoint from environment
-        foundry_endpoint = os.environ.get("AZURE_AI_FOUNDRY_PROJECT_ENDPOINT")
+        # Get Azure AI Foundry endpoint from environment (works in both local and cloud)
+        foundry_endpoint = get_env_var("AZURE_AI_FOUNDRY_PROJECT_ENDPOINT")
         if not foundry_endpoint:
             print("⚠️ AZURE_AI_FOUNDRY_PROJECT_ENDPOINT not found - using console tracing only")
             provider = TracerProvider(resource=resource)

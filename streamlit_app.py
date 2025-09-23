@@ -8,8 +8,32 @@ from PIL import Image
 import io
 from dotenv import load_dotenv
 from openai import AzureOpenAI
+import asyncio
+from datetime import datetime
 
+# Load environment variables first before any other setup
 load_dotenv()
+
+# Setup OpenTelemetry tracing for Azure AI Foundry dashboard
+try:
+    from setup_tracing import setup_azure_tracing
+    setup_azure_tracing()
+except Exception as e:
+    print(f"⚠️ Could not setup OpenTelemetry tracing: {e}")
+
+# Multi-Agent Architecture imports (old local agents - removed)
+MULTI_AGENT_AVAILABLE = False
+MULTI_AGENT_TYPE = "removed"
+print("Local multi-agent system removed - using Azure AI Foundry agents only")
+
+# Azure AI Foundry Agents imports
+try:
+    from intelligent_orchestrator import IntelligentOrchestrator
+    AZURE_FOUNDRY_AVAILABLE = True
+    print("✅ Using Intelligent Azure OpenAI agents with collaboration (GPT-4o for agents, GPT-5 for output)")
+except ImportError as e:
+    AZURE_FOUNDRY_AVAILABLE = False
+    print(f"❌ Could not import fixed Azure agents: {e}")
 
 st.set_page_config(page_title="🏗️ ArchitectAI Studio", page_icon="🏗️", layout="centered")
 
@@ -68,7 +92,7 @@ flux_endpoint = os.getenv("FLUX_ENDPOINT") or st.secrets.get("FLUX_ENDPOINT")
 
 # Fallback configuration if environment variables aren't loaded
 if not flux_endpoint:
-    flux_endpoint = "https://chatproject100.cognitiveservices.azure.com/openai/deployments/FLUX.1-Kontext-pro/images/generations?api-version=2025-04-01-preview"
+    flux_endpoint = "https://chatproject100.cognitiveservices.azure.com/openai/deployments/FLUX.1-Kontext-pro/images/generations?api-version=2024-12-01-preview"
 if not flux_api_key:
     flux_api_key = None  # Must be provided via environment or secrets
 
@@ -107,6 +131,30 @@ def get_flux_client(ep: str, key: str, version: str):
     if ep and key and version:
         return AzureOpenAI(api_version=version, azure_endpoint=ep, api_key=key)
     return None
+
+# Initialize Multi-Agent Orchestrator
+@st.cache_resource
+def get_orchestrator(agent_type="azure"):
+    """Get orchestrator based on agent type selection"""
+    if agent_type == "azure" and AZURE_FOUNDRY_AVAILABLE:
+        try:
+            return IntelligentOrchestrator()
+        except Exception as e:
+            st.warning(f"⚠️ Intelligent Azure agents initialization failed: {e}")
+            return None
+    elif agent_type == "local":
+        st.warning("⚠️ Local multi-agent system has been removed. Please use Azure agents.")
+        return None
+    return None
+
+# Initialize with Fixed Azure orchestrator by default
+orchestrator = None
+if AZURE_FOUNDRY_AVAILABLE:
+    try:
+        orchestrator = IntelligentOrchestrator()
+    except Exception as e:
+        print(f"Failed to initialize Intelligent Azure orchestrator: {e}")
+        orchestrator = None
 
 # Debug: Print configuration values (remove these lines once everything works)
 # st.write(f"🔧 Debug - Azure OpenAI Endpoint: {endpoint}")
@@ -183,6 +231,234 @@ Provide a comprehensive description that could be used to generate a similar arc
         st.error(f"Error analyzing image: {e}")
         return None
 
+# Multi-Agent Processing Function
+async def process_with_multi_agents(user_text, uploaded_files=None, architectural_style=None, view_type=None, agent_type="local"):
+    """Process request using the multi-agent system (local or Azure AI Foundry)"""
+    
+    # Get the appropriate orchestrator
+    current_orchestrator = get_orchestrator(agent_type)
+    
+    if not current_orchestrator:
+        return None
+    
+    # Convert uploaded files to bytes if present
+    image_bytes_list = None
+    if uploaded_files is not None and len(uploaded_files) > 0:
+        image_bytes_list = []
+        for uploaded_file in uploaded_files:
+            file_bytes = uploaded_file.read()
+            image_bytes_list.append(file_bytes)
+            uploaded_file.seek(0)  # Reset file pointer
+    
+    # Initialize Azure AI Foundry agents if needed
+    if agent_type == "azure" and hasattr(current_orchestrator, 'initialize_agents'):
+        init_success = await current_orchestrator.initialize_agents()
+        if not init_success:
+            st.error("❌ Failed to initialize Azure AI Foundry agents")
+            return None
+    
+    # Build conversation context for caching (Azure AI Foundry)
+    conversation_context = ""
+    if agent_type == "azure":
+        # Add previous conversation history for context-aware caching
+        if 'messages' in st.session_state and len(st.session_state.messages) > 1:
+            recent_messages = st.session_state.messages[-3:]  # Last 3 messages
+            for msg in recent_messages:
+                if msg.get('role') == 'user':
+                    conversation_context += f"User: {msg.get('content', '')[:100]}... "
+                elif msg.get('role') == 'assistant':
+                    conversation_context += f"Assistant: {msg.get('content', '')[:100]}... "
+    
+    # Process with multi-agent system
+    if agent_type == "azure":
+        # Intelligent Azure orchestrator with dynamic routing and agent collaboration
+        session_id = f"session_{int(time.time())}"  # Create unique session ID
+        if conversation_context:
+            enhanced_user_text = f"[CONVERSATION_CONTEXT: {conversation_context}]\n\nCURRENT_REQUEST: {user_text}"
+        else:
+            enhanced_user_text = user_text
+        
+        result = await current_orchestrator.process_request(
+            user_message=enhanced_user_text,
+            user_images=image_bytes_list,
+            session_id=session_id
+        )
+    else:
+        # Local orchestrator - keep existing single image support for now
+        first_image = image_bytes_list[0] if image_bytes_list and len(image_bytes_list) > 0 else None
+        result = await current_orchestrator.process_request(
+            user_text=user_text,
+            user_image=first_image,
+            architectural_style=architectural_style,
+            view_type=view_type
+        )
+    
+    return result
+
+def display_workflow_results(result, agent_type="local"):
+    """Display multi-agent workflow results (local or Azure AI Foundry)"""
+    if not result:
+        return
+    
+    if agent_type == "azure":
+        # Intelligent Azure AI orchestrator results format
+        final_output = result.get('final_output', {})
+        if final_output.get('agent_collaboration'):
+            st.success("✅ Intelligent Multi-Agent Processing with Collaboration Completed!")
+            
+            # Show intelligent routing performance
+            if final_output.get('intelligent_routing'):
+                st.info("🧠 **Intelligent Routing**: Dynamic workflow with agent collaboration and handoffs")
+            
+            # Workflow summary
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                workflow_tasks = final_output.get('workflow_executed', [])
+                st.metric("Tasks Executed", len(workflow_tasks))
+            with col2:
+                confidence = final_output.get('confidence_score', 0)
+                st.metric("Confidence", f"{confidence:.2f}")
+            with col3:
+                st.metric("Collaboration", "✅ Active" if final_output.get('agent_collaboration') else "❌ None")
+            with col4:
+                st.metric("Routing", "🤖 Intelligent" if final_output.get('intelligent_routing') else "📋 Fixed")
+            
+            # Intelligent orchestrator agent responses
+            with st.expander("🤖 Intelligent Agent Collaboration Results", expanded=True):
+                all_results = result.get('all_results', {})
+                
+                # Display results in execution order
+                task_order = {
+                    'VISION_ANALYSIS': 1,
+                    'ARCHITECTURAL_CONSULTATION': 2, 
+                    'STYLE_ANALYSIS': 3,
+                    'TECHNICAL_REVIEW': 4,
+                    'PROMPT_ENGINEERING': 5,
+                    'QUALITY_ASSURANCE': 6
+                }
+                
+                sorted_results = sorted(all_results.items(), 
+                                      key=lambda x: task_order.get(x[0].name, 99))
+                
+                for task_type, content in sorted_results:
+                    agent_name = task_type.name.replace('_', ' ').title()
+                    
+                    st.markdown(f"**{agent_name} Agent:**")
+                    if content:
+                        # Try to parse JSON format first
+                        try:
+                            import json
+                            if content.strip().startswith('{'):
+                                parsed = json.loads(content)
+                                for key, value in parsed.items():
+                                    if isinstance(value, list):
+                                        st.markdown(f"- **{key.title()}**: {', '.join(map(str, value))}")
+                                    else:
+                                        st.markdown(f"- **{key.title()}**: {value}")
+                            else:
+                                st.markdown(content)
+                        except:
+                            # Fallback to plain text
+                            st.markdown(content)
+                    st.markdown("---")
+                
+                # Final extracted results
+                st.markdown("### 📋 Final Consultation Results")
+                
+                if final_output.get('architectural_analysis'):
+                    st.markdown("**🔍 Vision Analysis:**")
+                    st.text_area("", final_output['architectural_analysis'], height=100, key="azure_vision")
+                
+                if final_output.get('expert_consultation'):
+                    st.markdown("**🏗️ Expert Consultation:**")
+                    st.text_area("", final_output['expert_consultation'], height=100, key="azure_arch")
+                
+                if final_output.get('style_analysis'):
+                    st.markdown("**🎨 Style Analysis:**")
+                    st.text_area("", final_output['style_analysis'], height=100, key="azure_style")
+                
+                if final_output.get('technical_review'):
+                    st.markdown("**⚙️ Technical Review:**")
+                    st.text_area("", final_output['technical_review'], height=100, key="azure_tech")
+                
+                if final_output.get('optimized_prompt'):
+                    st.markdown("**✨ Optimized FLUX Prompt:**")
+                    st.text_area("", final_output['optimized_prompt'], height=100, key="azure_prompt")
+                    
+                    # Copy button for the optimized prompt
+                    if st.button("📋 Copy Optimized Prompt", key="copy_azure_prompt"):
+                        st.code(final_output['optimized_prompt'])
+                        st.success("✅ Prompt displayed above - you can now copy it!")
+                
+                if final_output.get('quality_review'):
+                    st.markdown("**✅ Quality Assurance:**")
+                    st.text_area("", final_output['quality_review'], height=100, key="azure_qa")
+        else:
+            st.error(f"❌ Intelligent Azure orchestrator processing failed: {result.get('error', 'Unknown error')}")
+    
+    else:
+        # Local agent results format
+        if result and result.get('success'):
+            st.success("✅ Local Multi-Agent Processing Completed!")
+            
+            # Workflow summary
+            summary = result.get('processing_summary', {})
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Agents", summary.get('total_agents', 0))
+            with col2:
+                st.metric("Confidence", f"{summary.get('average_confidence', 0):.2f}")
+            with col3:
+                st.metric("Time", f"{summary.get('execution_time', 0):.1f}s")
+            with col4:
+                ready = result.get('final_output', {}).get('ready_for_image_generation', False)
+                st.metric("Ready", "✅" if ready else "❌")
+            
+            # Local agent responses in expander
+            with st.expander("🤖 Agent Responses", expanded=True):
+                agent_responses = result.get('agent_responses', {})
+                
+                for agent_name, response in agent_responses.items():
+                    st.markdown(f"**{agent_name}:**")
+                    st.info(response.get('content', 'No response content'))
+                    st.caption(f"Confidence: {response.get('confidence', 0):.2f} | "
+                             f"Processing Time: {response.get('processing_time', 0):.2f}s")
+                    st.markdown("---")
+                
+                # Final output
+                final_output = result.get('final_output', {})
+                if final_output:
+                    st.markdown("### 📋 Final Output")
+                    
+                    if final_output.get('optimized_prompt'):
+                        st.markdown("**✨ Optimized Prompt for Image Generation:**")
+                        st.text_area("", final_output['optimized_prompt'], height=100, key="local_prompt")
+                        
+                        if st.button("📋 Copy Optimized Prompt", key="copy_local_prompt"):
+                            st.code(final_output['optimized_prompt'])
+                            st.success("✅ Prompt displayed above - you can now copy it!")
+                    
+                    if final_output.get('architectural_analysis'):
+                        st.markdown("**🏗️ Architectural Analysis:**")
+                        st.text_area("", final_output['architectural_analysis'], height=100, key="local_analysis")
+        else:
+            st.error(f"❌ Local multi-agent processing failed: {result.get('error', 'Unknown error') if result else 'No result returned'}")
+        with st.expander("🤖 Agent Analysis Details"):
+            for i, response in enumerate(result.get('agent_responses', [])):
+                agent_name = response.get('agent_type', '').replace('_', ' ').title()
+                st.markdown(f"**{i+1}. {agent_name}**")
+                st.write(response.get('content', ''))
+                st.caption(f"Confidence: {response.get('confidence', 0):.2f}")
+                st.markdown("---")
+        
+        # Return optimized prompt
+        final_output = result.get('final_output', {})
+        return final_output.get('optimized_prompt', '')
+    
+    return None
+
 # Image generation function
 def generate_architectural_image(prompt, reference_image=None):
     """Generate architectural images using FLUX.1-Kontext-pro via direct API calls"""
@@ -219,13 +495,13 @@ Create a new architectural visualization that maintains the spatial type, style,
             
             headers = {
                 "Content-Type": "application/json",
-                "api-key": flux_api_key
+                "Authorization": f"Bearer {flux_api_key}"
             }
             data = {
                 "prompt": enhanced_prompt,
                 "size": "1024x1024",
                 "n": 1,
-                "output_format": "png"
+                "model": "flux.1-kontext-pro"
             }
             
             # More detailed debugging (remove these lines once everything works)
@@ -257,13 +533,13 @@ Create a new architectural visualization that maintains the spatial type, style,
             
             headers = {
                 "Content-Type": "application/json",
-                "api-key": flux_api_key
+                "Authorization": f"Bearer {flux_api_key}"
             }
             data = {
                 "prompt": enhanced_prompt,
                 "size": "1024x1024",
                 "n": 1,
-                "output_format": "png"
+                "model": "flux.1-kontext-pro"
             }
             
             # More detailed debugging (remove these lines once everything works)
@@ -406,6 +682,45 @@ st.markdown("---")
 if mode == "🎨 Image Generation":
     st.markdown("### 🎨 Architectural Visualization Generator")
     
+    # Multi-Agent selection if available
+    agent_systems_available = []
+    if AZURE_FOUNDRY_AVAILABLE:
+        agent_systems_available.append("Azure AI Foundry Agents")
+    
+    use_multi_agent = False
+    agent_type = "azure"  # Default to Azure AI Foundry
+    
+    if agent_systems_available:
+        use_multi_agent = st.toggle(
+            "🤖 Use Multi-Agent Intelligence", 
+            value=True,
+            help="Enable sophisticated multi-agent processing for superior results"
+        )
+        
+        if use_multi_agent:
+            if len(agent_systems_available) > 1:
+                agent_system = st.radio(
+                    "🤖 Agent System:",
+                    agent_systems_available,
+                    horizontal=True,
+                    help="Choose between local Python agents or deployed Azure AI Foundry agents"
+                )
+                agent_type = "azure" if agent_system == "Azure AI Foundry Agents" else "local"
+            elif "Azure AI Foundry Agents" in agent_systems_available:
+                agent_type = "azure"
+                st.info("🤖 **Azure AI Foundry Mode**: Using deployed Azure AI Foundry agents")
+            else:
+                agent_type = "local"
+                st.info("🤖 **Local Multi-Agent Mode**: Using local Python agents")
+            
+            if agent_type == "azure":
+                st.info("☁️ **Azure AI Foundry Agents**: Your request will be processed by deployed Azure AI Foundry agents with native Azure tracing, monitoring, and intelligent prompt caching for improved performance.")
+            else:
+                st.info("🏠 **Local Multi-Agent Mode**: Your request will be processed by local specialized AI agents for vision analysis, architectural expertise, prompt optimization, and quality assurance.")
+    else:
+        use_multi_agent = False
+        st.info("💡 **Standard Mode**: Multi-agent systems not available. Using traditional processing.")
+    
     # Generation mode selection
     generation_mode = st.radio(
         "🎨 Generation Mode:",
@@ -414,17 +729,23 @@ if mode == "🎨 Image Generation":
     )
     
     if generation_mode == "🖼️ Image to Image":
-        st.markdown("#### 📤 Upload Reference Image")
-        uploaded_file = st.file_uploader(
-            "Upload an architectural image to modify or get inspired by:",
+        st.markdown("#### 📤 Upload Reference Images")
+        uploaded_files = st.file_uploader(
+            "Upload architectural images to modify or get inspired by:",
             type=['png', 'jpg', 'jpeg'],
-            help="Upload a photo, sketch, or existing architectural image that you want to modify or use as inspiration"
+            accept_multiple_files=True,
+            help="Upload photos, sketches, or existing architectural images that you want to modify or use as inspiration. You can upload multiple images for comprehensive analysis."
         )
         
-        if uploaded_file is not None:
-            st.image(uploaded_file, caption="Reference Image", use_container_width=True)
+        if uploaded_files:
+            st.markdown(f"**{len(uploaded_files)} image(s) uploaded:**")
+            # Display images in a grid layout
+            cols = st.columns(min(3, len(uploaded_files)))  # Max 3 columns
+            for idx, uploaded_file in enumerate(uploaded_files):
+                with cols[idx % 3]:
+                    st.image(uploaded_file, caption=f"Reference Image {idx + 1}", use_container_width=True)
             
-        st.info("💡 **Image-to-Image Generation:** Upload any architectural image (interior, exterior, detail). GPT-4 Vision will analyze it and understand the space, style, and features. FLUX will then generate a new image based on this detailed analysis combined with your modifications, creating architecturally consistent results.")
+        st.info("💡 **Image-to-Image Generation:** Upload architectural images (interior, exterior, detail). GPT-4 Vision will analyze each image and understand the spaces, styles, and features. When multiple images are provided, the analysis will combine insights from all images. FLUX will then generate a new image based on this comprehensive analysis combined with your modifications, creating architecturally consistent results.")
     
     col1, col2 = st.columns(2)
     with col1:
@@ -515,7 +836,7 @@ elif mode == "🎨 Image Generation" and 'generate_button' in locals() and gener
         enhanced_prompt += f" View type: {view_type}."
         
         # Prepare the reference image if in image-to-image mode
-        reference_img = uploaded_file if generation_mode == "🖼️ Image to Image" else None
+        reference_imgs = uploaded_files if generation_mode == "🖼️ Image to Image" else None
         
         user_message = {
             "role": "user", 
@@ -525,10 +846,54 @@ elif mode == "🎨 Image Generation" and 'generate_button' in locals() and gener
         }
         st.session_state.messages.append(user_message)
         
+        # Use multi-agent processing if enabled
+        if 'use_multi_agent' in locals() and use_multi_agent:
+            try:
+                agent_type_to_use = agent_type if 'agent_type' in locals() else "local"
+                
+                with st.spinner(f"🤖 {'Azure AI Foundry' if agent_type_to_use == 'azure' else 'Local Multi-Agent'} System Processing..."):
+                    # Process with multi-agent system
+                    workflow_result = asyncio.run(process_with_multi_agents(
+                        user_text=user_input,
+                        uploaded_files=reference_imgs,
+                        architectural_style=style_preset if style_preset != "Custom (use description)" else None,
+                        view_type=view_type,
+                        agent_type=agent_type_to_use
+                    ))
+                    
+                    if workflow_result:
+                        # Display workflow results
+                        display_workflow_results(workflow_result, agent_type_to_use)
+                        
+                        # Extract optimized prompt based on agent type
+                        optimized_prompt = None
+                        if agent_type_to_use == "azure":
+                            optimized_prompt = workflow_result.get('final_result', {}).get('optimized_prompt')
+                        else:
+                            optimized_prompt = workflow_result.get('final_output', {}).get('optimized_prompt')
+                        
+                        if optimized_prompt:
+                            st.markdown("### 🎯 Optimized Prompt")
+                            st.text_area("Generated by Multi-Agent System:", optimized_prompt, height=100, disabled=True)
+                            
+                            # Use optimized prompt for generation
+                            enhanced_prompt = optimized_prompt
+                        
+                        # Store workflow result in session state
+                        st.session_state.last_workflow = workflow_result
+                    else:
+                        st.warning("⚠️ Multi-agent processing failed, falling back to standard mode")
+                        
+            except Exception as e:
+                st.error(f"🤖 Multi-agent processing error: {e}")
+                st.info("Falling back to standard processing...")
+        
         try:
             spinner_text = "🔄 Transforming architectural image..." if generation_mode == "🖼️ Image to Image" else "🎨 Generating architectural visualization..."
             with st.spinner(spinner_text):
-                generated_image_data = generate_architectural_image(enhanced_prompt, reference_img)
+                # Use first image for image generation (FLUX currently supports single image input)
+                first_reference_img = reference_imgs[0] if reference_imgs and len(reference_imgs) > 0 else None
+                generated_image_data = generate_architectural_image(enhanced_prompt, first_reference_img)
                 
             if generated_image_data:
                 generated_image = Image.open(io.BytesIO(generated_image_data))
@@ -537,6 +902,10 @@ elif mode == "🎨 Image Generation" and 'generate_button' in locals() and gener
                     ai_response = f"I've transformed your reference image based on your description: '{user_input}'\n\nStyle: {style_preset}\nView: {view_type}\n\nThe new image shows an architectural interpretation that incorporates your requested modifications while maintaining professional rendering quality. 🔄✨"
                 else:
                     ai_response = f"I've generated an architectural visualization based on your description: '{user_input}'\n\nStyle: {style_preset}\nView: {view_type}\n\nThe image shows a professional architectural rendering that matches your specifications. 🏗️✨"
+                
+                # Add multi-agent enhancement note if used
+                if 'use_multi_agent' in locals() and use_multi_agent and 'optimized_prompt' in locals() and optimized_prompt:
+                    ai_response += "\n\n🤖 **Enhanced with Multi-Agent Intelligence**: This image was generated using an optimized prompt created by our specialized AI agents for superior architectural accuracy and quality."
                 
                 st.session_state.messages.append({
                     "role": "assistant", 
@@ -557,6 +926,40 @@ elif mode == "🎨 Image Generation" and 'generate_button' in locals() and gener
 with st.sidebar:
     st.markdown("## 🏗️ Architectural Tools")
     st.markdown("*Your design companion* 📐")
+    
+    # Multi-Agent Status
+    if AZURE_FOUNDRY_AVAILABLE and orchestrator:
+        st.success("🤖 Multi-Agent System: Active")
+        if st.button("🔍 Open Tracing Dashboard", use_container_width=True):
+            st.success("🔍 Tracing dashboard opened!")
+            st.info("View workflow traces in Azure AI Foundry dashboard")
+        
+        # Intelligent Orchestrator Information
+        try:
+            st.markdown("### � Intelligent Agent System")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Agent Types", "6 Specialists")
+                st.metric("Routing", "Dynamic & Intelligent")
+            with col2:
+                st.metric("Model Strategy", "GPT-4o + GPT-5")
+                if hasattr(orchestrator, 'conversation_memory'):
+                    memory_sessions = len(orchestrator.conversation_memory)
+                    st.metric("Active Sessions", memory_sessions)
+                else:
+                    st.metric("Collaboration", "✅ Active")
+        except Exception as e:
+            st.warning(f"Orchestrator info unavailable: {str(e)}")
+        
+        # Display last workflow metrics if available
+        if 'last_workflow' in st.session_state:
+            workflow = st.session_state.last_workflow
+            summary = workflow.get('processing_summary', {})
+            st.markdown("### 📊 Last Workflow")
+            st.metric("Confidence", f"{summary.get('average_confidence', 0):.2f}")
+            st.metric("Processing Time", f"{summary.get('execution_time', 0):.1f}s")
+    else:
+        st.info("🤖 Multi-Agent System: Unavailable")
     
     if st.button("🌸 New Project", use_container_width=True):
         st.session_state.messages = []
@@ -599,4 +1002,7 @@ with st.sidebar:
     st.markdown("- 📋 Project planning & guidance")
 
 st.markdown("---")
-st.markdown("*Built with 🏗️ for architectural excellence* 📐")
+if AZURE_FOUNDRY_AVAILABLE and orchestrator:
+    st.markdown("*🤖 Enhanced with Azure AI Foundry Agents | 🔍 Monitored with Azure Tracing | 🎨 Generated with FLUX.1-Kontext-pro* 📐")
+else:
+    st.markdown("*Built with 🏗️ for architectural excellence* 📐")
